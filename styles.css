@@ -1,0 +1,339 @@
+:root {
+  --bg: #f4f1eb;
+  --card: #fffdfb;
+  --ink: #2f2c29;
+  --muted: #726c64;
+  --line: #e5dfd6;
+  --accent: #3e6b57;
+  --accent-dark: #325746;
+  --expense: #8f5344;
+  --focus: #2f6f8f;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.app {
+  width: min(440px, 100%);
+  margin: 0 auto;
+  padding: 28px 16px calc(32px + env(safe-area-inset-bottom));
+}
+
+.masthead h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.lede,
+.list-head p,
+.field > span,
+.totals dt,
+legend,
+.empty,
+.entry-meta,
+.muted {
+  color: var(--muted);
+}
+
+.lede {
+  margin: 6px 0 0;
+  font-size: 0.92rem;
+}
+
+.panel {
+  margin-top: 14px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+
+.month-bar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.month-bar h2 {
+  margin: 0;
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.month-bar button,
+.delete {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.month-bar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.totals div {
+  min-width: 0;
+  padding: 10px 8px;
+  background: #f7f4ef;
+  border-radius: 12px;
+}
+
+.totals dt {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.totals dd {
+  margin: 4px 0 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+#total-income {
+  color: var(--accent);
+}
+
+#total-expense,
+#total-balance.negative {
+  color: var(--expense);
+}
+
+fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+}
+
+.type-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.type-toggle legend {
+  grid-column: 1 / -1;
+}
+
+.type-toggle label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.type-toggle input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+}
+
+.type-toggle label:has(input:checked) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.field > span {
+  font-size: 0.82rem;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+input::placeholder {
+  color: #a39c93;
+}
+
+.form-error {
+  margin: 0 0 12px;
+  color: var(--expense);
+  font-size: 0.92rem;
+}
+
+.submit {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.submit:hover {
+  background: var(--accent-dark);
+}
+
+.list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.list-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.list-head p,
+.empty {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.empty {
+  margin-top: 12px;
+}
+
+#entry-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.entry {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.entry-main {
+  min-width: 0;
+}
+
+.entry-meta,
+.entry-memo,
+.entry-amount {
+  margin: 0;
+}
+
+.entry-memo {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.entry-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.entry-amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.entry-expense .entry-amount {
+  color: var(--expense);
+}
+
+.entry-income .entry-amount {
+  color: var(--accent);
+}
+
+.delete {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.type-toggle label:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.noscript {
+  max-width: 440px;
+  margin: 16px auto;
+  padding: 0 16px;
+}
+
+@media (max-width: 360px) {
+  .month-bar button {
+    padding-inline: 8px;
+    font-size: 0.85rem;
+  }
+
+  .totals dd {
+    font-size: 0.88rem;
+  }
+}
