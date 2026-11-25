@@ -1,6 +1,13 @@
 const STORAGE_KEY = "gagye.entries.v1";
 const MIN_YEAR = 2000;
 const MAX_YEAR = 2100;
+const CYCLES = ["none", "daily", "weekly", "monthly", "yearly"];
+const CYCLE_LABEL = {
+  daily: "매일",
+  weekly: "매주",
+  monthly: "매월",
+  yearly: "매년",
+};
 
 const form = document.querySelector("#entry-form");
 const monthLabel = document.querySelector("#month-label");
@@ -15,6 +22,7 @@ const countEl = document.querySelector("#entry-count");
 const errorEl = document.querySelector("#form-error");
 const dateInput = document.querySelector("#entry-date");
 const amountInput = document.querySelector("#entry-amount");
+const cycleInput = document.querySelector("#entry-cycle");
 
 let entries = loadEntries();
 
@@ -40,6 +48,7 @@ function isValidEntry(item) {
   const category = item.category.trim();
   if (category.length < 1 || category.length > 20) return false;
   if (typeof item.memo !== "string" || item.memo.length > 80) return false;
+  if (item.cycle != null && !CYCLES.includes(item.cycle)) return false;
   return true;
 }
 
@@ -103,6 +112,44 @@ function parseAmount(raw) {
   return amount;
 }
 
+function cycleOf(entry) {
+  return CYCLES.includes(entry.cycle) ? entry.cycle : "none";
+}
+
+function weekdayOf(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day).getDay();
+}
+
+function occursOn(entry, date) {
+  const cycle = cycleOf(entry);
+  if (cycle === "none") return date === entry.date;
+  if (date < entry.date) return false;
+  if (cycle === "daily") return true;
+  if (cycle === "weekly") return weekdayOf(date) === weekdayOf(entry.date);
+  if (cycle === "monthly") return Number(date.slice(8)) === Number(entry.date.slice(8));
+  if (cycle === "yearly") return date.slice(5) === entry.date.slice(5);
+  return false;
+}
+
+function rowsInMonth(year, monthIndex) {
+  const key = monthKey(year, monthIndex);
+  const last = new Date(year, monthIndex + 1, 0).getDate();
+  const rows = [];
+  for (const entry of entries) {
+    if (cycleOf(entry) === "none") {
+      if (entry.date.startsWith(`${key}-`)) rows.push(entry);
+      continue;
+    }
+    for (let day = 1; day <= last; day += 1) {
+      const date = `${key}-${pad(day)}`;
+      if (!occursOn(entry, date)) continue;
+      rows.push({ ...entry, date });
+    }
+  }
+  return rows.sort(compareEntries);
+}
+
 function newId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -140,9 +187,11 @@ function renderItem(entry) {
 
   const [, month, day] = entry.date.split("-");
   const kind = entry.type === "income" ? "수입" : "지출";
+  const cycle = cycleOf(entry);
+  const cycleLabel = CYCLE_LABEL[cycle] ? ` · ${CYCLE_LABEL[cycle]}` : "";
   const meta = document.createElement("p");
   meta.className = "entry-meta";
-  meta.textContent = `${Number(month)}월 ${Number(day)}일 · ${kind} · ${entry.category}`;
+  meta.textContent = `${Number(month)}월 ${Number(day)}일 · ${kind} · ${entry.category}${cycleLabel}`;
 
   const memo = document.createElement("p");
   memo.className = "entry-memo";
@@ -163,7 +212,9 @@ function renderItem(entry) {
   button.textContent = "삭제";
   button.setAttribute(
     "aria-label",
-    `${Number(month)}월 ${Number(day)}일 ${entry.category} ${formatKRW(entry.amount)} 삭제`
+    cycle === "none"
+      ? `${Number(month)}월 ${Number(day)}일 ${entry.category} ${formatKRW(entry.amount)} 삭제`
+      : `${entry.category} ${CYCLE_LABEL[cycle]} 기록 전체 삭제`
   );
   button.addEventListener("click", () => removeEntry(entry.id));
 
@@ -182,11 +233,10 @@ function render() {
   prevButton.disabled = year === MIN_YEAR && monthIndex === 0;
   nextButton.disabled = year === MAX_YEAR && monthIndex === 11;
 
-  const monthEntries = entries.filter((entry) => entry.date.startsWith(`${key}-`)).sort(compareEntries);
-
+  const rows = rowsInMonth(year, monthIndex);
   let income = 0;
   let expense = 0;
-  for (const entry of monthEntries) {
+  for (const entry of rows) {
     if (entry.type === "income") income += entry.amount;
     else expense += entry.amount;
   }
@@ -196,10 +246,10 @@ function render() {
   expenseEl.textContent = formatKRW(expense);
   balanceEl.textContent = `${balance < 0 ? "−" : ""}${formatKRW(Math.abs(balance))}`;
   balanceEl.classList.toggle("negative", balance < 0);
-  countEl.textContent = `${monthEntries.length}건`;
+  countEl.textContent = `${rows.length}건`;
 
-  listEl.replaceChildren(...monthEntries.map(renderItem));
-  emptyEl.hidden = monthEntries.length > 0;
+  listEl.replaceChildren(...rows.map(renderItem));
+  emptyEl.hidden = rows.length > 0;
 
   if (!dateInput.value.startsWith(key)) {
     dateInput.value = defaultDateFor(year, monthIndex);
@@ -224,11 +274,14 @@ function shiftMonth(delta) {
 }
 
 function removeEntry(id) {
-  if (!window.confirm("이 기록을 삭제할까요?")) return;
-  const next = entries.filter((entry) => entry.id !== id);
-  if (next.length === entries.length) return;
+  const current = entries.find((entry) => entry.id === id);
+  if (!current) return;
+  const message = cycleOf(current) === "none"
+    ? "이 기록을 삭제할까요?"
+    : "이 반복 기록을 삭제할까요? 다른 달에서도 빠집니다.";
+  if (!window.confirm(message)) return;
   const previous = entries;
-  entries = next;
+  entries = entries.filter((entry) => entry.id !== id);
   if (!saveEntries()) {
     entries = previous;
     showError("이 브라우저에 저장하지 못했습니다.");
@@ -255,9 +308,14 @@ form.addEventListener("submit", (event) => {
   const custom = String(data.get("customCategory") || "").trim();
   const category = custom || picked;
   const memo = String(data.get("memo") || "").trim();
+  const cycle = String(data.get("cycle") || "");
 
   if (!isDateInRange(date)) {
     showError("2000년부터 2100년 사이의 날짜를 선택해 주세요.");
+    return;
+  }
+  if (!CYCLES.includes(cycle)) {
+    showError("반복을 선택해 주세요.");
     return;
   }
   if (amount == null) {
@@ -280,6 +338,7 @@ form.addEventListener("submit", (event) => {
     amount,
     category,
     memo,
+    cycle,
     createdAt: new Date().toISOString(),
   };
   entries = entries.concat(entry);
@@ -292,6 +351,7 @@ form.addEventListener("submit", (event) => {
   amountInput.value = "";
   form.elements.memo.value = "";
   form.elements.customCategory.value = "";
+  cycleInput.value = "none";
   const [year, month] = date.split("-").map(Number);
   goToMonth(year, month - 1, false);
 });

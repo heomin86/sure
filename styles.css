@@ -257,6 +257,12 @@ input::placeholder {
   margin-top: 12px;
 }
 
+.field-note {
+  margin: -4px 0 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 #entry-list {
   list-style: none;
   margin: 4px 0 0;
