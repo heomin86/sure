@@ -35,6 +35,17 @@
             <dd id="total-balance">0원</dd>
           </div>
         </dl>
+        <h3 id="dashboard-heading" class="dash-title">이 달 살펴보기</h3>
+        <dl class="dash-facts" id="dash-facts"></dl>
+        <div class="dash-block">
+          <h3>지출 분류</h3>
+          <p id="dash-expense-empty" class="empty">이 달의 지출이 없습니다.</p>
+          <ul id="dash-expense-cats" class="dash-cats"></ul>
+        </div>
+        <div class="dash-block" id="dash-income-block" hidden>
+          <h3>수입 분류</h3>
+          <ul id="dash-income-cats" class="dash-cats"></ul>
+        </div>
       </section>
 
       <form id="entry-form" class="panel" novalidate>

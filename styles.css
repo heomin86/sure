@@ -135,6 +135,82 @@ legend,
   overflow-wrap: anywhere;
 }
 
+.dash-title,
+.dash-block h3 {
+  margin: 18px 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.dash-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.dash-facts div {
+  min-width: 0;
+  padding: 10px;
+  background: #f7f4ef;
+  border-radius: 12px;
+}
+
+.dash-facts dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.dash-facts dd {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.dash-cats {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.dash-cat + .dash-cat {
+  margin-top: 10px;
+}
+
+.dash-cat-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+.dash-cat-top span:last-child {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dash-track {
+  height: 6px;
+  margin-top: 6px;
+  background: #f0ebe4;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.dash-fill {
+  height: 100%;
+  background: var(--expense);
+  border-radius: inherit;
+}
+
+.dash-fill-income {
+  background: var(--accent);
+}
+
 #total-income {
   color: var(--accent);
 }

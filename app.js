@@ -43,6 +43,11 @@ const incomeEl = document.querySelector("#total-income");
 const expenseEl = document.querySelector("#total-expense");
 const balanceEl = document.querySelector("#total-balance");
 const listEl = document.querySelector("#entry-list");
+const dashFacts = document.querySelector("#dash-facts");
+const dashExpenseCats = document.querySelector("#dash-expense-cats");
+const dashExpenseEmpty = document.querySelector("#dash-expense-empty");
+const dashIncomeBlock = document.querySelector("#dash-income-block");
+const dashIncomeCats = document.querySelector("#dash-income-cats");
 const emptyEl = document.querySelector("#empty");
 const countEl = document.querySelector("#entry-count");
 const errorEl = document.querySelector("#form-error");
@@ -288,6 +293,157 @@ function renderItem(entry) {
   return li;
 }
 
+function expenseTotals(rows) {
+  const totals = { KRW: 0, AUD: 0 };
+  for (const row of rows) {
+    if (row.type === "expense") totals[currencyOf(row)] += row.amount;
+  }
+  return totals;
+}
+
+function previousMonth(year, monthIndex) {
+  const shifted = new Date(year, monthIndex - 1, 1);
+  if (shifted.getFullYear() < MIN_YEAR) return null;
+  return { year: shifted.getFullYear(), monthIndex: shifted.getMonth() };
+}
+
+function factItem(term, value) {
+  const wrap = document.createElement("div");
+  const termEl = document.createElement("dt");
+  termEl.textContent = term;
+  const valueEl = document.createElement("dd");
+  valueEl.textContent = value;
+  wrap.append(termEl, valueEl);
+  return wrap;
+}
+
+function comparisonText(year, monthIndex, currentExpense) {
+  const previous = previousMonth(year, monthIndex);
+  if (!previous) return "비교할 이전 달이 없습니다.";
+  const prior = expenseTotals(rowsInMonth(previous.year, previous.monthIndex));
+  const lines = [];
+  for (const currency of ["KRW", "AUD"]) {
+    if (!currentExpense[currency] && !prior[currency]) continue;
+    const diff = currentExpense[currency] - prior[currency];
+    if (diff === 0) lines.push(`${formatMoney(0, currency)} 같음`);
+    else if (diff > 0) lines.push(`${formatMoney(diff, currency)} 더 씀`);
+    else lines.push(`${formatMoney(-diff, currency)} 덜 씀`);
+  }
+  return lines.length ? lines.join(" · ") : "지출 없음";
+}
+
+function averageText(expense, days) {
+  const lines = [];
+  for (const currency of ["KRW", "AUD"]) {
+    if (!expense[currency]) continue;
+    lines.push(formatMoney(Math.round(expense[currency] / days), currency));
+  }
+  return lines.length ? lines.join(" · ") : "지출 없음";
+}
+
+function largestExpenseText(rows) {
+  const largest = { KRW: null, AUD: null };
+  for (const row of rows) {
+    if (row.type !== "expense") continue;
+    const currency = currencyOf(row);
+    if (!largest[currency] || row.amount > largest[currency].amount) largest[currency] = row;
+  }
+  const lines = [];
+  for (const currency of ["KRW", "AUD"]) {
+    const row = largest[currency];
+    if (!row) continue;
+    const day = Number(row.date.slice(8));
+    const name = row.memo || row.category;
+    lines.push(`${day}일 ${name} ${formatMoney(row.amount, currency)}`);
+  }
+  return lines.length ? lines.join(" · ") : "없음";
+}
+
+function mixText(rows) {
+  let repeating = 0;
+  let once = 0;
+  for (const row of rows) {
+    if (cycleOf(row) === "none") once += 1;
+    else repeating += 1;
+  }
+  if (repeating === 0 && once === 0) return "기록 없음";
+  const parts = [];
+  if (repeating) parts.push(`반복 ${repeating}건`);
+  if (once) parts.push(`한 번 ${once}건`);
+  return parts.join(" · ");
+}
+
+function categoryGroups(rows, type) {
+  const groups = new Map();
+  for (const row of rows) {
+    if (row.type !== type) continue;
+    const currency = currencyOf(row);
+    const key = `${currency}:${row.category}`;
+    const current = groups.get(key) || {
+      category: row.category,
+      currency,
+      amount: 0,
+      count: 0,
+    };
+    current.amount += row.amount;
+    current.count += 1;
+    groups.set(key, current);
+  }
+  return [...groups.values()].sort((a, b) => b.amount - a.amount || (a.category < b.category ? -1 : 1));
+}
+
+function renderCategoryList(rows, type, listEl) {
+  const items = categoryGroups(rows, type);
+  const totals = {};
+  for (const item of items) totals[item.currency] = (totals[item.currency] || 0) + item.amount;
+  const max = items.reduce((highest, item) => Math.max(highest, item.amount), 0);
+  listEl.replaceChildren(...items.map((item) => {
+    const li = document.createElement("li");
+    li.className = "dash-cat";
+    const top = document.createElement("div");
+    top.className = "dash-cat-top";
+    const name = document.createElement("span");
+    const share = Math.round((item.amount / totals[item.currency]) * 100);
+    name.textContent = `${item.category} · ${item.count}건 · ${share}%`;
+    const amount = document.createElement("span");
+    amount.textContent = formatMoney(item.amount, item.currency);
+    top.append(name, amount);
+    const track = document.createElement("div");
+    track.className = "dash-track";
+    const fill = document.createElement("div");
+    fill.className = type === "income" ? "dash-fill dash-fill-income" : "dash-fill";
+    fill.style.width = `${Math.max(8, Math.round((item.amount / max) * 100))}%`;
+    track.append(fill);
+    li.append(top, track);
+    return li;
+  }));
+}
+
+function renderDashboard(rows, year, monthIndex) {
+  const expense = expenseTotals(rows);
+  const days = new Date(year, monthIndex + 1, 0).getDate();
+  const now = new Date();
+  const facts = [
+    factItem("지난달 지출", comparisonText(year, monthIndex, expense)),
+    factItem("하루 평균", averageText(expense, days)),
+    factItem("가장 큰 지출", largestExpenseText(rows)),
+    factItem("기록 구성", mixText(rows)),
+  ];
+  if (now.getFullYear() === year && now.getMonth() === monthIndex) {
+    const left = days - now.getDate();
+    facts.push(factItem("남은 날", left === 0 ? "오늘이 마지막 날" : `${left}일`));
+  }
+  dashFacts.replaceChildren(...facts);
+
+  const expenseItems = categoryGroups(rows, "expense");
+  dashExpenseEmpty.hidden = expenseItems.length > 0;
+  renderCategoryList(rows, "expense", dashExpenseCats);
+
+  const incomeItems = categoryGroups(rows, "income");
+  dashIncomeBlock.hidden = incomeItems.length === 0;
+  renderCategoryList(rows, "income", dashIncomeCats);
+}
+
 function render() {
   const { year, monthIndex } = viewedMonth();
   const key = monthKey(year, monthIndex);
@@ -313,6 +469,7 @@ function render() {
   balanceEl.textContent = currencies.map((currency) => formatSigned(income[currency] - expense[currency], currency)).join(" · ");
   balanceEl.classList.toggle("negative", currencies.some((currency) => income[currency] - expense[currency] < 0));
   countEl.textContent = `${rows.length}건`;
+  renderDashboard(rows, year, monthIndex);
 
   listEl.replaceChildren(...rows.map(renderItem));
   emptyEl.hidden = rows.length > 0;
