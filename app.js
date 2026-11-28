@@ -1,13 +1,39 @@
 const STORAGE_KEY = "gagye.entries.v1";
 const MIN_YEAR = 2000;
 const MAX_YEAR = 2100;
-const CYCLES = ["none", "daily", "weekly", "monthly", "yearly"];
+const CYCLES = ["none", "daily", "weekly", "biweekly", "monthly", "yearly"];
 const CYCLE_LABEL = {
   daily: "매일",
   weekly: "매주",
+  biweekly: "2주마다",
   monthly: "매월",
   yearly: "매년",
 };
+const CURRENCIES = ["KRW", "AUD"];
+const SEEDED = [
+  {
+    id: "seed-aud-grocery-weekly-20261128",
+    type: "expense",
+    date: "2026-11-28",
+    amount: 200,
+    category: "식비",
+    memo: "장보기",
+    cycle: "weekly",
+    currency: "AUD",
+    createdAt: "2026-11-28T00:00:00.000Z",
+  },
+  {
+    id: "seed-aud-dining-biweekly-20261128",
+    type: "expense",
+    date: "2026-11-28",
+    amount: 100,
+    category: "식비",
+    memo: "외식",
+    cycle: "biweekly",
+    currency: "AUD",
+    createdAt: "2026-11-28T00:00:01.000Z",
+  },
+];
 
 const form = document.querySelector("#entry-form");
 const monthLabel = document.querySelector("#month-label");
@@ -27,15 +53,30 @@ const cycleInput = document.querySelector("#entry-cycle");
 let entries = loadEntries();
 
 function loadEntries() {
+  let list = [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidEntry);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) list = parsed.filter(isValidEntry);
+    }
   } catch {
-    return [];
+    list = [];
   }
+  return mergeSeeded(list);
+}
+
+function mergeSeeded(list) {
+  const ids = new Set(list.map((entry) => entry.id));
+  const missing = SEEDED.filter((entry) => !ids.has(entry.id));
+  if (missing.length === 0) return list;
+  const next = list.concat(missing);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Keep the merged list on screen even if this browser cannot store it.
+  }
+  return next;
 }
 
 function isValidEntry(item) {
@@ -49,6 +90,7 @@ function isValidEntry(item) {
   if (category.length < 1 || category.length > 20) return false;
   if (typeof item.memo !== "string" || item.memo.length > 80) return false;
   if (item.cycle != null && !CYCLES.includes(item.cycle)) return false;
+  if (item.currency != null && !CURRENCIES.includes(item.currency)) return false;
   return true;
 }
 
@@ -96,8 +138,18 @@ function viewedMonth() {
   return parseHash() || currentMonth();
 }
 
-function formatKRW(amount) {
+function currencyOf(entry) {
+  return entry.currency === "AUD" ? "AUD" : "KRW";
+}
+
+function formatMoney(amount, currency) {
+  if (currency === "AUD") return `A$${amount.toLocaleString("en-AU")}`;
   return `${amount.toLocaleString("ko-KR")}원`;
+}
+
+function formatSigned(amount, currency) {
+  const body = formatMoney(Math.abs(amount), currency);
+  return amount < 0 ? `−${body}` : body;
 }
 
 function normalizeDigits(raw) {
@@ -121,12 +173,21 @@ function weekdayOf(value) {
   return new Date(year, month - 1, day).getDay();
 }
 
+function daysBetween(start, date) {
+  const [startYear, startMonth, startDay] = start.split("-").map(Number);
+  const [year, month, day] = date.split("-").map(Number);
+  const startUtc = Date.UTC(startYear, startMonth - 1, startDay);
+  const dateUtc = Date.UTC(year, month - 1, day);
+  return Math.round((dateUtc - startUtc) / 86400000);
+}
+
 function occursOn(entry, date) {
   const cycle = cycleOf(entry);
   if (cycle === "none") return date === entry.date;
   if (date < entry.date) return false;
   if (cycle === "daily") return true;
   if (cycle === "weekly") return weekdayOf(date) === weekdayOf(entry.date);
+  if (cycle === "biweekly") return daysBetween(entry.date, date) % 14 === 0;
   if (cycle === "monthly") return Number(date.slice(8)) === Number(entry.date.slice(8));
   if (cycle === "yearly") return date.slice(5) === entry.date.slice(5);
   return false;
@@ -202,9 +263,10 @@ function renderItem(entry) {
     memo.classList.add("muted");
   }
 
+  const money = formatMoney(entry.amount, currencyOf(entry));
   const amount = document.createElement("p");
   amount.className = "entry-amount";
-  amount.textContent = entry.type === "expense" ? `−${formatKRW(entry.amount)}` : formatKRW(entry.amount);
+  amount.textContent = entry.type === "expense" ? `−${money}` : money;
 
   const button = document.createElement("button");
   button.type = "button";
@@ -213,7 +275,7 @@ function renderItem(entry) {
   button.setAttribute(
     "aria-label",
     cycle === "none"
-      ? `${Number(month)}월 ${Number(day)}일 ${entry.category} ${formatKRW(entry.amount)} 삭제`
+      ? `${Number(month)}월 ${Number(day)}일 ${entry.category} ${money} 삭제`
       : `${entry.category} ${CYCLE_LABEL[cycle]} 기록 전체 삭제`
   );
   button.addEventListener("click", () => removeEntry(entry.id));
@@ -234,18 +296,22 @@ function render() {
   nextButton.disabled = year === MAX_YEAR && monthIndex === 11;
 
   const rows = rowsInMonth(year, monthIndex);
-  let income = 0;
-  let expense = 0;
+  const income = { KRW: 0, AUD: 0 };
+  const expense = { KRW: 0, AUD: 0 };
   for (const entry of rows) {
-    if (entry.type === "income") income += entry.amount;
-    else expense += entry.amount;
+    const currency = currencyOf(entry);
+    if (entry.type === "income") income[currency] += entry.amount;
+    else expense[currency] += entry.amount;
   }
-  const balance = income - expense;
+  const currencies = [];
+  if (income.KRW || expense.KRW) currencies.push("KRW");
+  if (income.AUD || expense.AUD) currencies.push("AUD");
+  if (currencies.length === 0) currencies.push("KRW");
 
-  incomeEl.textContent = formatKRW(income);
-  expenseEl.textContent = formatKRW(expense);
-  balanceEl.textContent = `${balance < 0 ? "−" : ""}${formatKRW(Math.abs(balance))}`;
-  balanceEl.classList.toggle("negative", balance < 0);
+  incomeEl.textContent = currencies.map((currency) => formatMoney(income[currency], currency)).join(" · ");
+  expenseEl.textContent = currencies.map((currency) => formatMoney(expense[currency], currency)).join(" · ");
+  balanceEl.textContent = currencies.map((currency) => formatSigned(income[currency] - expense[currency], currency)).join(" · ");
+  balanceEl.classList.toggle("negative", currencies.some((currency) => income[currency] - expense[currency] < 0));
   countEl.textContent = `${rows.length}건`;
 
   listEl.replaceChildren(...rows.map(renderItem));
@@ -318,8 +384,13 @@ form.addEventListener("submit", (event) => {
     showError("반복을 선택해 주세요.");
     return;
   }
+  const currency = String(data.get("currency") || "");
   if (amount == null) {
-    showError("금액은 1원 이상으로 입력해 주세요.");
+    showError("금액은 1 이상으로 입력해 주세요.");
+    return;
+  }
+  if (!CURRENCIES.includes(currency)) {
+    showError("통화를 선택해 주세요.");
     return;
   }
   if (category.length < 1 || category.length > 20) {
@@ -339,6 +410,7 @@ form.addEventListener("submit", (event) => {
     category,
     memo,
     cycle,
+    currency,
     createdAt: new Date().toISOString(),
   };
   entries = entries.concat(entry);
